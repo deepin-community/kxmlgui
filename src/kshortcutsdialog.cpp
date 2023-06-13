@@ -66,7 +66,12 @@ public:
     void changeShortcutScheme(const QString &scheme)
     {
         if (m_keyChooser->isModified()
-            && KMessageBox::questionYesNo(q, i18n("The current shortcut scheme is modified. Save before switching to the new one?")) == KMessageBox::Yes) {
+            && KMessageBox::questionTwoActions(q,
+                                               i18n("The current shortcut scheme is modified. Save before switching to the new one?"),
+                                               QString(),
+                                               KStandardGuiItem::save(),
+                                               KStandardGuiItem::discard())
+                == KMessageBox::PrimaryAction) {
             m_keyChooser->save();
         } else {
             m_keyChooser->undo();
@@ -265,6 +270,16 @@ void KShortcutsDialog::exportConfiguration(const QString &path) const
 {
     KConfig config(path);
     d->m_keyChooser->exportConfiguration(static_cast<KConfigBase *>(&config));
+}
+
+void KShortcutsDialog::refreshSchemes()
+{
+    d->m_schemeEditor->refreshSchemes();
+}
+
+void KShortcutsDialog::addActionToSchemesMoreButton(QAction *action)
+{
+    d->m_schemeEditor->addMoreMenuAction(action);
 }
 
 #include "moc_kshortcutsdialog.cpp"

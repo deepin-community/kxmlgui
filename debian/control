@@ -3,21 +3,21 @@ Section: libs
 Priority: optional
 Maintainer: Debian Qt/KDE Maintainers <debian-qt-kde@lists.debian.org>
 Uploaders: Aurélien COUDERC <coucouf@debian.org>,
-           Norbert Preining <norbert@preining.info>,
 Build-Depends: cmake (>= 3.16~),
                debhelper-compat (= 13),
+               dh-sequence-kf5,
                doxygen,
-               extra-cmake-modules (>= 5.90.0~),
+               extra-cmake-modules (>= 5.103.0~),
                libkf5attica-dev (>= 5.82.0~),
-               libkf5config-dev (>= 5.90.0~),
-               libkf5configwidgets-dev (>= 5.90.0~),
-               libkf5coreaddons-dev (>= 5.90.0~),
-               libkf5globalaccel-dev (>= 5.90.0~),
-               libkf5guiaddons-dev (>= 5.90.0~),
-               libkf5i18n-dev (>= 5.90.0~),
-               libkf5iconthemes-dev (>= 5.90.0~),
-               libkf5itemviews-dev (>= 5.90.0~),
-               libkf5widgetsaddons-dev (>= 5.90.0~),
+               libkf5config-dev (>= 5.103.0~),
+               libkf5configwidgets-dev (>= 5.103.0~),
+               libkf5coreaddons-dev (>= 5.103.0~),
+               libkf5globalaccel-dev (>= 5.103.0~),
+               libkf5guiaddons-dev (>= 5.103.0~),
+               libkf5i18n-dev (>= 5.103.0~),
+               libkf5iconthemes-dev (>= 5.103.0~),
+               libkf5itemviews-dev (>= 5.103.0~),
+               libkf5widgetsaddons-dev (>= 5.103.0~),
                libkf5windowsystem-dev (>= 5.77.0~),
                libqt5sql5-sqlite,
                libqt5x11extras5-dev (>= 5.4),
@@ -26,7 +26,7 @@ Build-Depends: cmake (>= 3.16~),
                qtbase5-private-dev (>= 5.7.0~),
                qttools5-dev,
                qttools5-dev-tools (>= 5.4),
-Standards-Version: 4.6.0
+Standards-Version: 4.6.2
 Homepage: https://invent.kde.org/frameworks/kxmlgui
 Vcs-Browser: https://salsa.debian.org/qt-kde-team/kde/kxmlgui
 Vcs-Git: https://salsa.debian.org/qt-kde-team/kde/kxmlgui.git
@@ -34,7 +34,7 @@ Rules-Requires-Root: no
 
 Package: libkf5xmlgui-bin
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends},
 Multi-Arch: same
 Description: User configurable main windows.
  framework for designing the user interface
@@ -46,9 +46,9 @@ Description: User configurable main windows.
 Package: libkf5xmlgui-data
 Architecture: all
 Multi-Arch: foreign
-Depends: ${misc:Depends}
-Breaks: libkf5xmlgui5 (<< 5.74)
-Replaces: libkf5xmlgui5 (<< 5.74)
+Depends: ${misc:Depends},
+Breaks: libkf5xmlgui5 (<< 5.74),
+Replaces: libkf5xmlgui5 (<< 5.74),
 Description: User configurable main windows.
  framework for designing the user interface
  of an application using XML, using the idea
@@ -60,17 +60,17 @@ Package: libkf5xmlgui-dev
 Section: libdevel
 Architecture: any
 Depends: libkf5attica-dev (>= 5.82.0~),
-         libkf5config-dev (>= 5.90.0~),
-         libkf5configwidgets-dev (>= 5.90.0~),
-         libkf5globalaccel-dev (>= 5.90.0~),
-         libkf5iconthemes-dev (>= 5.90.0~),
-         libkf5itemviews-dev (>= 5.90.0~),
+         libkf5config-dev (>= 5.103.0~),
+         libkf5configwidgets-dev (>= 5.103.0~),
+         libkf5globalaccel-dev (>= 5.103.0~),
+         libkf5iconthemes-dev (>= 5.103.0~),
+         libkf5itemviews-dev (>= 5.103.0~),
          libkf5windowsystem-dev (>= 5.77.0~),
          libkf5xmlgui5 (= ${binary:Version}),
          qtbase5-dev (>= 5.15.2~),
          ${misc:Depends},
          ${shlibs:Depends},
-Recommends: libkf5xmlgui-doc (= ${source:Version})
+Recommends: libkf5xmlgui-doc (= ${source:Version}),
 Description: User configurable main windows.
  framework for designing the user interface
  of an application using XML, using the idea
@@ -88,7 +88,7 @@ Multi-Arch: same
 Package: libkf5xmlgui-doc
 Architecture: all
 Multi-Arch: foreign
-Depends: ${misc:Depends}
+Depends: ${misc:Depends},
 Description: User configurable main windows (documentation)
  framework for designing the user interface
  of an application using XML, using the idea
@@ -103,7 +103,7 @@ Multi-Arch: same
 Depends: libkf5xmlgui-data (= ${source:Version}),
          ${misc:Depends},
          ${shlibs:Depends},
-Recommends: libkf5xmlgui-bin (= ${binary:Version})
+Recommends: libkf5xmlgui-bin (= ${binary:Version}),
 Description: User configurable main windows.
  framework for designing the user interface
  of an application using XML, using the idea

@@ -18,12 +18,12 @@
 #include <QHelpEvent>
 #include <QMenu>
 #include <QStyle>
-#include <QtGlobal>
 #include <QToolButton>
 #include <QToolTip>
 #include <QWhatsThis>
 #include <QWhatsThisClickedEvent>
 #include <QWindow>
+#include <QtGlobal>
 
 KToolTipHelper *KToolTipHelper::instance()
 {
@@ -39,8 +39,8 @@ KToolTipHelper *KToolTipHelperPrivate::instance()
 }
 
 KToolTipHelper::KToolTipHelper(QObject *parent)
-    : QObject{parent},
-      d{new KToolTipHelperPrivate(this)}
+    : QObject{parent}
+    , d{new KToolTipHelperPrivate(this)}
 {
 }
 
@@ -48,8 +48,7 @@ KToolTipHelperPrivate::KToolTipHelperPrivate(KToolTipHelper *qq)
     : q{qq}
 {
     m_toolTipTimeout.setSingleShot(true);
-    connect(&m_toolTipTimeout, &QTimer::timeout,
-            this, &KToolTipHelperPrivate::postToolTipEventIfCursorDidntMove);
+    connect(&m_toolTipTimeout, &QTimer::timeout, this, &KToolTipHelperPrivate::postToolTipEventIfCursorDidntMove);
 }
 
 KToolTipHelper::~KToolTipHelper() = default;
@@ -69,8 +68,7 @@ bool KToolTipHelperPrivate::eventFilter(QObject *watched, QEvent *event)
     case QEvent::KeyPress:
         return handleKeyPressEvent(event);
     case QEvent::ToolTip:
-        return handleToolTipEvent(static_cast<QWidget *>(watched),
-                                  static_cast<QHelpEvent *>(event));
+        return handleToolTipEvent(watched, static_cast<QHelpEvent *>(event));
     case QEvent::WhatsThisClicked:
         return handleWhatsThisClickedEvent(event);
     default:
@@ -105,10 +103,11 @@ bool KToolTipHelperPrivate::handleHideEvent(QObject *watched, QEvent *event)
 
 bool KToolTipHelperPrivate::handleKeyPressEvent(QEvent *event)
 {
-    if (!QToolTip::isVisible()
-        || static_cast<QKeyEvent *>(event)->key() != Qt::Key_Shift
-        || !m_widget
-    ) {
+    if (!QToolTip::isVisible() || static_cast<QKeyEvent *>(event)->key() != Qt::Key_Shift || !m_widget) {
+        return false;
+    }
+
+    if (!m_lastToolTipWasExpandable) {
         return false;
     }
 
@@ -134,10 +133,10 @@ bool KToolTipHelperPrivate::handleKeyPressEvent(QEvent *event)
             // oftentimes fails to find a nice position around it and will instead cover
             // the hovered action itself! To avoid this we give a smaller positioningHelper-widget
             // as the third parameter which only has the size of the hovered menu action entry.
-            QWidget positioningHelper{menu};
-            positioningHelper.setGeometry(menu->actionGeometry(m_action));
-            QWhatsThis::showText(m_lastExpandableToolTipGlobalPos,
-                                 m_action->whatsThis(), &positioningHelper);
+            QWidget *positioningHelper = new QWidget(menu); // Needs to be alive as long as the help is shown or hyperlinks can't be opened.
+            positioningHelper->setGeometry(menu->actionGeometry(m_action));
+            QWhatsThis::showText(m_lastExpandableToolTipGlobalPos, m_action->whatsThis(), positioningHelper);
+            connect(menu, &QMenu::aboutToHide, positioningHelper, &QObject::deleteLater);
         }
         return true;
     }
@@ -160,10 +159,10 @@ bool KToolTipHelperPrivate::handleMenuToolTipEvent(QMenu *menu, QHelpEvent *help
     // All actions have their text as a tooltip by default.
     // We only want to display the tooltip text if it isn't identical
     // to the already visible text in the menu.
-    const bool explicitToolTip = hasExplicitToolTip(m_action);
+    const bool explicitTooltip = !isTextSimilar(m_action->iconText(), m_action->toolTip());
     // We only want to show the whatsThisHint in a tooltip if the whatsThis isn't empty.
     const bool emptyWhatsThis = m_action->whatsThis().isEmpty();
-    if (!explicitToolTip && emptyWhatsThis) {
+    if (!explicitTooltip && emptyWhatsThis) {
         QToolTip::hideText();
         return false;
     }
@@ -172,12 +171,11 @@ bool KToolTipHelperPrivate::handleMenuToolTipEvent(QMenu *menu, QHelpEvent *help
     // a part of the menu.
     const QRect actionGeometry = menu->actionGeometry(m_action);
     const int xOffset = menu->layoutDirection() == Qt::RightToLeft ? 0 : actionGeometry.width();
-    const QPoint toolTipPosition(
-            helpEvent->globalX() - helpEvent->x() + xOffset,
-            helpEvent->globalY() - helpEvent->y() + actionGeometry.y() - actionGeometry.height() / 2);
+    const QPoint toolTipPosition(helpEvent->globalX() - helpEvent->x() + xOffset,
+                                 helpEvent->globalY() - helpEvent->y() + actionGeometry.y() - actionGeometry.height() / 2);
 
-    if (explicitToolTip) {
-        if (emptyWhatsThis) {
+    if (explicitTooltip) {
+        if (emptyWhatsThis || isTextSimilar(m_action->whatsThis(), m_action->toolTip())) {
             if (m_action->toolTip() != whatsThisHintOnly()) {
                 QToolTip::showText(toolTipPosition, m_action->toolTip(), m_widget, actionGeometry);
             }
@@ -191,17 +189,32 @@ bool KToolTipHelperPrivate::handleMenuToolTipEvent(QMenu *menu, QHelpEvent *help
     return true;
 }
 
-bool KToolTipHelperPrivate::handleToolTipEvent(QWidget *watchedWidget, QHelpEvent *helpEvent)
+bool KToolTipHelperPrivate::handleToolTipEvent(QObject *watched, QHelpEvent *helpEvent)
 {
-    m_widget = watchedWidget;
+    if (auto watchedWidget = qobject_cast<QWidget *>(watched)) {
+        m_widget = watchedWidget;
+    } else {
+        // There are fringe cases in which QHelpEvents are sent to QObjects that are not QWidgets
+        // e.g. objects inheriting from QSystemTrayIcon.
+        // We do not know how to handle those so we return false.
+        return false;
+    }
+
+    m_lastToolTipWasExpandable = false;
+
+    bool areToolTipAndWhatsThisSimilar = isTextSimilar(m_widget->whatsThis(), m_widget->toolTip());
 
     if (QToolButton *toolButton = qobject_cast<QToolButton *>(m_widget)) {
         if (const QAction *action = toolButton->defaultAction()) {
             if (!action->shortcut().isEmpty() && action->toolTip() != whatsThisHintOnly()) {
-                toolButton->setToolTip(i18nc(
-                        "@info:tooltip %1 is the tooltip of an action, %2 is its keyboard shorcut",
-                        "%1 (%2)",
-                        action->toolTip(), action->shortcut().toString(QKeySequence::NativeText)));
+                // Because we set the tool button's tooltip below, we must re-check the whats this, because the shortcut
+                // would technically make it unique.
+                areToolTipAndWhatsThisSimilar = isTextSimilar(action->whatsThis(), action->toolTip());
+
+                toolButton->setToolTip(i18nc("@info:tooltip %1 is the tooltip of an action, %2 is its keyboard shorcut",
+                                             "%1 (%2)",
+                                             action->toolTip(),
+                                             action->shortcut().toString(QKeySequence::NativeText)));
                 // Do not replace the brackets in the above i18n-call with <shortcut> tags from
                 // KUIT because mixing KUIT with HTML is not allowed and %1 could be anything.
 
@@ -219,7 +232,8 @@ bool KToolTipHelperPrivate::handleToolTipEvent(QWidget *watchedWidget, QHelpEven
             return false;
         }
     }
-    if (m_widget->whatsThis().isEmpty()) {
+
+    if (m_widget->whatsThis().isEmpty() || areToolTipAndWhatsThisSimilar) {
         if (m_widget->toolTip() == whatsThisHintOnly()) {
             return true;
         }
@@ -247,44 +261,39 @@ void KToolTipHelperPrivate::postToolTipEventIfCursorDidntMove() const
     const auto widgetUnderCursor = qApp->widgetAt(globalCursorPos);
     // We only want a behaviour change for QMenus.
     if (qobject_cast<QMenu *>(widgetUnderCursor)) {
-        qGuiApp->postEvent(widgetUnderCursor,
-                           new QHelpEvent(QEvent::ToolTip,
-                                          widgetUnderCursor->mapFromGlobal(globalCursorPos),
-                                          globalCursorPos));
+        qGuiApp->postEvent(widgetUnderCursor, new QHelpEvent(QEvent::ToolTip, widgetUnderCursor->mapFromGlobal(globalCursorPos), globalCursorPos));
     }
 }
 
-void KToolTipHelperPrivate::showExpandableToolTip(const QPoint &globalPos,
-                                                  const QString &toolTip,
-                                                  const QRect &rect)
+void KToolTipHelperPrivate::showExpandableToolTip(const QPoint &globalPos, const QString &toolTip, const QRect &rect)
 {
     m_lastExpandableToolTipGlobalPos = QPoint(globalPos);
+    m_lastToolTipWasExpandable = true;
     const KColorScheme colorScheme = KColorScheme(QPalette::Normal, KColorScheme::Tooltip);
     const QColor hintTextColor = colorScheme.foreground(KColorScheme::InactiveText).color();
 
     if (toolTip.isEmpty() || toolTip == whatsThisHintOnly()) {
-        // i18n: @info:tooltip Pressing Shift will show a longer message with contextual info
-        // about the thing the tooltip was invoked for. If there is no good way to translate
-        // the message, translating "Press Shift to learn more." would also mostly fit what
-        // is supposed to be expressed here.
-        const QString whatsThisHint = i18n(
-                "<small><font color=\"%1\">Press <b>Shift</b> for more Info.</font></small>",
-                hintTextColor.name());
+        const QString whatsThisHint =
+            // i18n: Pressing Shift will show a longer message with contextual info
+            // about the thing the tooltip was invoked for. If there is no good way to translate
+            // the message, translating "Press Shift to learn more." would also mostly fit what
+            // is supposed to be expressed here.
+            i18nc("@info:tooltip", "<small><font color=\"%1\">Press <b>Shift</b> for more Info.</font></small>", hintTextColor.name());
         QToolTip::showText(m_lastExpandableToolTipGlobalPos, whatsThisHint, m_widget, rect);
     } else {
-        // i18n: @info:tooltip The 'Press Shift for more' message is added to tooltips that have an
-        // available whatsthis help message. Pressing Shift will show this more exhaustive message.
-        // It is particularly important to keep this translation short because:
-        // 1. A longer translation will increase the size of *every* tooltip that gets this hint
-        //      added e.g. a two word tooltip followed by a four word hint.
-        // 2. The purpose of this hint is so we can keep the tooltip shorter than it would have to
-        //      be if we couldn't refer to the message that appears when pressing Shift.
-        //
-        // %1 can be any tooltip. <br/> produces a linebreak. The other things between < and > are
-        // styling information. The word "more" refers to "information".
-        const QString toolTipWithHint = QStringLiteral("<qt>") + i18n(
-                "%1<br/><small><font color=\"%2\">Press <b>Shift</b> for more.</font></small>",
-                toolTip, hintTextColor.name()) + QStringLiteral("</qt>");
+        const QString toolTipWithHint = QStringLiteral("<qt>") +
+            // i18n: The 'Press Shift for more' message is added to tooltips that have an
+            // available whatsthis help message. Pressing Shift will show this more exhaustive message.
+            // It is particularly important to keep this translation short because:
+            // 1. A longer translation will increase the size of *every* tooltip that gets this hint
+            //      added e.g. a two word tooltip followed by a four word hint.
+            // 2. The purpose of this hint is so we can keep the tooltip shorter than it would have to
+            //      be if we couldn't refer to the message that appears when pressing Shift.
+            //
+            // %1 can be any tooltip. <br/> produces a linebreak. The other things between < and > are
+            // styling information. The word "more" refers to "information".
+            i18nc("@info:tooltip keep short", "%1<br/><small><font color=\"%2\">Press <b>Shift</b> for more.</font></small>", toolTip, hintTextColor.name())
+            + QStringLiteral("</qt>");
         // Do not replace above HTML tags with KUIT because mixing HTML and KUIT is not allowed and
         // we can not know what kind of markup the tooltip in %1 contains.
         QToolTip::showText(m_lastExpandableToolTipGlobalPos, toolTipWithHint, m_widget, rect);
@@ -293,32 +302,28 @@ void KToolTipHelperPrivate::showExpandableToolTip(const QPoint &globalPos,
 
 KToolTipHelper *KToolTipHelperPrivate::s_instance = nullptr;
 
-bool hasExplicitToolTip(const QAction *action)
+bool isTextSimilar(const QString &a, const QString &b)
 {
-    Q_CHECK_PTR(action);
-    const QString iconText = action->iconText();
-    const QString toolTip = action->toolTip();
     int i = -1;
     int j = -1;
     do {
-        i++; j++;
+        i++;
+        j++;
         // Both of these QStrings are considered equal if their only differences are '&' and '.' chars.
         // Now move both of their indices to the next char that is neither '&' nor '.'.
-        while (i < iconText.size()
-            && (iconText.at(i) == QLatin1Char('&') || iconText.at(i) == QLatin1Char('.'))) {
+        while (i < a.size() && (a.at(i) == QLatin1Char('&') || a.at(i) == QLatin1Char('.'))) {
             i++;
         }
-        while (j < toolTip.size()
-            && (toolTip.at(j) == QLatin1Char('&') || toolTip.at(j) == QLatin1Char('.'))) {
+        while (j < b.size() && (b.at(j) == QLatin1Char('&') || b.at(j) == QLatin1Char('.'))) {
             j++;
         }
 
-        if (i >= iconText.size()) {
-            return j < toolTip.size();
+        if (i >= a.size()) {
+            return j >= b.size();
         }
-        if (j >= toolTip.size()) {
-            return i < iconText.size();
+        if (j >= b.size()) {
+            return i >= a.size();
         }
-    } while (iconText.at(i) == toolTip.at(j));
-    return true; // We have found a difference.
+    } while (a.at(i) == b.at(j));
+    return false; // We have found a difference.
 }

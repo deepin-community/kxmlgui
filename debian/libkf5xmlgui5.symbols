@@ -1,4 +1,4 @@
-# SymbolsHelper-Confirmed: 5.85.0 alpha amd64 arm64 armel armhf hppa i386 ia64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 x32
+# SymbolsHelper-Confirmed: 5.93.0 armel armhf i386 ppc64el s390x
 libKF5XmlGui.so.5 libkf5xmlgui5 #MINVER#
 * Build-Depends-Package: libkf5xmlgui-dev
  _ZN10KBugReport10closeEventEP11QCloseEvent@Base 4.96.0
@@ -222,8 +222,10 @@ libKF5XmlGui.so.5 libkf5xmlgui5 #MINVER#
  _ZN16KShortcutsDialog11qt_metacallEN11QMetaObject4CallEiPPv@Base 4.96.0
  _ZN16KShortcutsDialog11qt_metacastEPKc@Base 4.96.0
  _ZN16KShortcutsDialog13addCollectionEP17KActionCollectionRK7QString@Base 4.96.0
+ _ZN16KShortcutsDialog14refreshSchemesEv@Base 5.97.0
  _ZN16KShortcutsDialog16staticMetaObjectE@Base 4.96.0
  _ZN16KShortcutsDialog19importConfigurationERK7QString@Base 5.15.0
+ _ZN16KShortcutsDialog28addActionToSchemesMoreButtonEP7QAction@Base 5.97.0
  _ZN16KShortcutsDialog5savedEv@Base 4.96.0
  _ZN16KShortcutsDialog6acceptEv@Base 4.98.0
  _ZN16KShortcutsDialog9configureEP17KActionCollectionN16KShortcutsEditor15LetterShortcutsEP7QWidgetb@Base 4.96.0

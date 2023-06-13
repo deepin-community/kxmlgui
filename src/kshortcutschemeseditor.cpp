@@ -32,8 +32,52 @@ KShortcutSchemesEditor::KShortcutSchemesEditor(KShortcutsDialog *parent)
     : QGroupBox(i18nc("@title:group", "Shortcut Schemes"), parent)
     , m_dialog(parent)
 {
-    KConfigGroup group(KSharedConfig::openConfig(), "Shortcut Schemes");
+    QHBoxLayout *l = new QHBoxLayout(this);
 
+    QLabel *schemesLabel = new QLabel(i18n("Current scheme:"), this);
+    l->addWidget(schemesLabel);
+
+    m_schemesList = new QComboBox(this);
+    m_schemesList->setEditable(false);
+    refreshSchemes();
+    m_schemesList->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+    schemesLabel->setBuddy(m_schemesList);
+    l->addWidget(m_schemesList);
+
+    m_newScheme = new QPushButton(QIcon::fromTheme(QStringLiteral("document-new")), i18nc("@action:button", "New..."));
+    l->addWidget(m_newScheme);
+
+    m_deleteScheme = new QPushButton(QIcon::fromTheme(QStringLiteral("edit-delete")), i18nc("@action:button", "Delete"));
+    l->addWidget(m_deleteScheme);
+
+    QPushButton *moreActions = new QPushButton(QIcon::fromTheme(QStringLiteral("view-more-symbolic")), i18nc("@action:button", "More Actions"));
+    l->addWidget(moreActions);
+
+    m_moreActionsMenu = new QMenu(this);
+    m_moreActionsMenu->addAction(QIcon::fromTheme(QStringLiteral("document-save")),
+                                 i18nc("@action:inmenu", "Save shortcuts to scheme"),
+                                 this,
+                                 &KShortcutSchemesEditor::saveAsDefaultsForScheme);
+    m_moreActionsMenu->addAction(QIcon::fromTheme(QStringLiteral("document-export")),
+                                 i18nc("@action:inmenu", "Export Scheme..."),
+                                 this,
+                                 &KShortcutSchemesEditor::exportShortcutsScheme);
+    m_moreActionsMenu->addAction(QIcon::fromTheme(QStringLiteral("document-import")),
+                                 i18nc("@action:inmenu", "Import Scheme..."),
+                                 this,
+                                 &KShortcutSchemesEditor::importShortcutsScheme);
+    moreActions->setMenu(m_moreActionsMenu);
+
+    l->addStretch(1);
+
+    connect(m_schemesList, &QComboBox::textActivated, this, &KShortcutSchemesEditor::shortcutsSchemeChanged);
+    connect(m_newScheme, &QPushButton::clicked, this, &KShortcutSchemesEditor::newScheme);
+    connect(m_deleteScheme, &QPushButton::clicked, this, &KShortcutSchemesEditor::deleteScheme);
+    updateDeleteButton();
+}
+
+void KShortcutSchemesEditor::refreshSchemes()
+{
     QStringList schemes;
     schemes << QStringLiteral("Default");
     // List files in the shortcuts subdir, each one is a scheme. See KShortcutSchemesHelper::{shortcutSchemeFileName,exportActionCollection}
@@ -49,48 +93,19 @@ KShortcutSchemesEditor::KShortcutSchemesEditor(KShortcutsDialog *parent)
         }
     }
 
+    m_schemesList->clear();
+    m_schemesList->addItems(schemes);
+
+    KConfigGroup group(KSharedConfig::openConfig(), "Shortcut Schemes");
     const QString currentScheme = group.readEntry("Current Scheme", "Default");
     qCDebug(DEBUG_KXMLGUI) << "Current Scheme" << currentScheme;
 
-    QHBoxLayout *l = new QHBoxLayout(this);
-
-    QLabel *schemesLabel = new QLabel(i18n("Current scheme:"), this);
-    l->addWidget(schemesLabel);
-
-    m_schemesList = new QComboBox(this);
-    m_schemesList->setEditable(false);
-    m_schemesList->addItems(schemes);
-    m_schemesList->setSizeAdjustPolicy(QComboBox::AdjustToContents);
     const int schemeIdx = m_schemesList->findText(currentScheme);
     if (schemeIdx > -1) {
         m_schemesList->setCurrentIndex(schemeIdx);
     } else {
         qCWarning(DEBUG_KXMLGUI) << "Current scheme" << currentScheme << "not found in" << shortcutsDirs;
     }
-    schemesLabel->setBuddy(m_schemesList);
-    l->addWidget(m_schemesList);
-
-    m_newScheme = new QPushButton(i18nc("@action:button", "New..."));
-    l->addWidget(m_newScheme);
-
-    m_deleteScheme = new QPushButton(i18nc("@action:button", "Delete"));
-    l->addWidget(m_deleteScheme);
-
-    QPushButton *moreActions = new QPushButton(i18nc("@action:button", "More Actions"));
-    l->addWidget(moreActions);
-
-    QMenu *moreActionsMenu = new QMenu(this);
-    moreActionsMenu->addAction(i18nc("@action:inmenu", "Save shortcuts to scheme"), this, &KShortcutSchemesEditor::saveAsDefaultsForScheme);
-    moreActionsMenu->addAction(i18nc("@action:inmenu", "Export Scheme..."), this, &KShortcutSchemesEditor::exportShortcutsScheme);
-    moreActionsMenu->addAction(i18nc("@action:inmenu", "Import Scheme..."), this, &KShortcutSchemesEditor::importShortcutsScheme);
-    moreActions->setMenu(moreActionsMenu);
-
-    l->addStretch(1);
-
-    connect(m_schemesList, &QComboBox::textActivated, this, &KShortcutSchemesEditor::shortcutsSchemeChanged);
-    connect(m_newScheme, &QPushButton::clicked, this, &KShortcutSchemesEditor::newScheme);
-    connect(m_deleteScheme, &QPushButton::clicked, this, &KShortcutSchemesEditor::deleteScheme);
-    updateDeleteButton();
 }
 
 void KShortcutSchemesEditor::newScheme()
@@ -103,7 +118,7 @@ void KShortcutSchemesEditor::newScheme()
     }
 
     if (m_schemesList->findText(newName) != -1) {
-        KMessageBox::sorry(this, i18n("A scheme with this name already exists."));
+        KMessageBox::error(this, i18n("A scheme with this name already exists."));
         return;
     }
 
@@ -132,11 +147,14 @@ void KShortcutSchemesEditor::newScheme()
 
 void KShortcutSchemesEditor::deleteScheme()
 {
-    if (KMessageBox::questionYesNo(this,
-                                   i18n("Do you really want to delete the scheme %1?\n\
+    if (KMessageBox::questionTwoActions(this,
+                                        i18n("Do you really want to delete the scheme %1?\n\
 Note that this will not remove any system wide shortcut schemes.",
-                                        currentScheme()))
-        == KMessageBox::No) {
+                                             currentScheme()),
+                                        QString(),
+                                        KStandardGuiItem::del(),
+                                        KStandardGuiItem::cancel())
+        == KMessageBox::SecondaryAction) {
         return;
     }
 
@@ -191,11 +209,16 @@ void KShortcutSchemesEditor::saveAsDefaultsForScheme()
         KMessageBox::information(this, i18n("Shortcut scheme successfully saved."));
     } else {
         // We'd need to return to return more than a bool, to show more details here.
-        KMessageBox::sorry(this, i18n("Error saving the shortcut scheme."));
+        KMessageBox::error(this, i18n("Error saving the shortcut scheme."));
     }
 }
 
 void KShortcutSchemesEditor::updateDeleteButton()
 {
     m_deleteScheme->setEnabled(m_schemesList->count() >= 1);
+}
+
+void KShortcutSchemesEditor::addMoreMenuAction(QAction *action)
+{
+    m_moreActionsMenu->addAction(action);
 }

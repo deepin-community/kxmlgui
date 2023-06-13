@@ -17,7 +17,6 @@
 #include <QMap>
 #include <QPushButton>
 #include <QSettings>
-#include <QSharedPointer>
 #include <QStandardPaths>
 #include <private/qlocale_p.h>
 
@@ -28,9 +27,7 @@
 // Believe it or not we can't use KConfig from here
 // (we need KConfig during QCoreApplication ctor which is too early for it)
 // So we cooked a QSettings based solution
-typedef QSharedPointer<QSettings> QSettingsPtr;
-
-static QSettingsPtr localeOverridesSettings()
+static std::unique_ptr<QSettings> localeOverridesSettings()
 {
     const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
     const QDir configDir(configPath);
@@ -38,12 +35,12 @@ static QSettingsPtr localeOverridesSettings()
         configDir.mkpath(QStringLiteral("."));
     }
 
-    return QSettingsPtr(new QSettings(configPath + QLatin1String("/klanguageoverridesrc"), QSettings::IniFormat));
+    return std::make_unique<QSettings>(configPath + QLatin1String("/klanguageoverridesrc"), QSettings::IniFormat);
 }
 
 static QByteArray getApplicationSpecificLanguage(const QByteArray &defaultCode = QByteArray())
 {
-    QSettingsPtr settings = localeOverridesSettings();
+    std::unique_ptr<QSettings> settings = localeOverridesSettings();
     settings->beginGroup(QStringLiteral("Language"));
     return settings->value(qAppName(), defaultCode).toByteArray();
 }
@@ -54,7 +51,7 @@ Q_COREAPP_STARTUP_FUNCTION(initializeLanguages)
 
 void setApplicationSpecificLanguage(const QByteArray &languageCode)
 {
-    QSettingsPtr settings = localeOverridesSettings();
+    std::unique_ptr<QSettings> settings = localeOverridesSettings();
     settings->beginGroup(QStringLiteral("Language"));
 
     if (languageCode.isEmpty()) {
@@ -312,19 +309,19 @@ static bool stripCountryCode(QString *languageCode)
 void KSwitchLanguageDialogPrivate::fillApplicationLanguages(KLanguageButton *button)
 {
     const QLocale cLocale(QLocale::C);
-    QSet<QString> insertedLanguges;
+    QSet<QString> insertedLanguages;
 
     const QList<QLocale> allLocales = QLocale::matchingLocales(QLocale::AnyLanguage, QLocale::AnyScript, QLocale::AnyCountry);
     for (const QLocale &l : allLocales) {
         if (l != cLocale) {
             QString languageCode = l.name();
-            if (!insertedLanguges.contains(languageCode) && KLocalizedString::isApplicationTranslatedInto(languageCode)) {
+            if (!insertedLanguages.contains(languageCode) && KLocalizedString::isApplicationTranslatedInto(languageCode)) {
                 button->insertLanguage(languageCode);
-                insertedLanguges << languageCode;
+                insertedLanguages << languageCode;
             } else if (stripCountryCode(&languageCode)) {
-                if (!insertedLanguges.contains(languageCode) && KLocalizedString::isApplicationTranslatedInto(languageCode)) {
+                if (!insertedLanguages.contains(languageCode) && KLocalizedString::isApplicationTranslatedInto(languageCode)) {
                     button->insertLanguage(languageCode);
-                    insertedLanguges << languageCode;
+                    insertedLanguages << languageCode;
                 }
             }
         }

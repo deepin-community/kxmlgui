@@ -199,6 +199,14 @@ public:
     /**
      * Get the action with the given \p name from the action collection.
      *
+     * This won't return the action for the menus defined using a "<Menu>" tag
+     * in XMLGUI files (e.g. "<Menu name="menuId">" in "applicationNameui.rc").
+     * To access menu actions defined like this, use e.g.
+     * \code
+     * qobject_cast<QMenu *>(guiFactory()->container("menuId", this));
+     * \endcode
+     * after having called setupGUI() or createGUI().
+     *
      * @param name Name of the QAction
      * @return A pointer to the QAction in the collection which matches the parameters or
      * null if nothing matches.
