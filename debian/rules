@@ -6,7 +6,7 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 include /usr/share/dpkg/vendor.mk
 
 %:
-	dh $@ --with kf5,pkgkde_symbolshelper --buildsystem kf5 --without build_stamp
+	dh $@ --with pkgkde_symbolshelper
 
 override_dh_auto_configure:
 	dh_auto_configure -- -DBUILD_QCH=ON -DXMLGUI_DISTRIBUTION_TEXT="$(DEB_VENDOR) packages" -DBUILD_TESTING=OFF

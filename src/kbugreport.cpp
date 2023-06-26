@@ -30,6 +30,7 @@
 #include <KEMailSettings>
 #include <KLocalizedString>
 #include <KMessageBox>
+#include <KMessageDialog>
 #include <KTitleWidget>
 
 #include "../kxmlgui_version.h"
@@ -207,7 +208,27 @@ KBugReport::KBugReport(const KAboutData &aboutData, QWidget *_parent)
 
     tmpLabel = new QLabel(i18n("OS:"), this);
     glay->addWidget(tmpLabel, ++row, 0);
-    d->os = SystemInformation::operatingSystemVersion();
+
+#ifdef Q_OS_WINDOWS
+    d->os = i18nc("%1 is the operating system name, e.g. 'Windows 10', %2 is the CPU architecture, e.g. 'x86_64'",
+                  "%1 (%2)",
+                  QSysInfo::prettyProductName(),
+                  QSysInfo::currentCpuArchitecture());
+#else
+    if (QSysInfo::productVersion() != QLatin1String("unknown")) {
+        d->os = i18nc(
+            "%1 is the operating system name, e.g. 'Fedora Linux', %2 is the operating system version, e.g. '35', %3 is the CPU architecture, e.g. 'x86_64'",
+            "%1 %2 (%3)",
+            QSysInfo::prettyProductName(),
+            QSysInfo::productVersion(),
+            QSysInfo::currentCpuArchitecture());
+    } else {
+        d->os = i18nc("%1 is the operating system name, e.g. 'Fedora Linux', %2 is the CPU architecture, e.g. 'x86_64'",
+                      "%1 (%2)",
+                      QSysInfo::prettyProductName(),
+                      QSysInfo::currentCpuArchitecture());
+    }
+#endif
 
     tmpLabel = new QLabel(d->os, this);
     tmpLabel->setTextInteractionFlags(Qt::TextBrowserInteraction);
@@ -352,11 +373,25 @@ void KBugReportPrivate::slotConfigureEmail()
     if (m_process) {
         return;
     }
+
+    const QString exec = QStandardPaths::findExecutable(QStringLiteral("kcmshell5"));
+    if (exec.isEmpty()) {
+        const QString msg = i18nc("The second arg is 'kde-cli-tools' which is the package that contains kcmshell5 (the first arg)",
+                                  "Could not find <application>%1</application> executable (usually it's part of the \"%2\" package).",
+                                  QStringLiteral("kcmshell5"),
+                                  QStringLiteral("kde-cli-tools"));
+        auto *dlg = new KMessageDialog(KMessageDialog::Error, msg, q);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->setModal(true);
+        dlg->show();
+        return;
+    }
+
     m_process = new QProcess;
     QObject::connect(m_process, &QProcess::finished, q, [this]() {
         slotSetFrom();
     });
-    m_process->start(QStringLiteral("kcmshell5"), QStringList() << QStringLiteral("kcm_users"));
+    m_process->start(exec, QStringList{QStringLiteral("kcm_users")});
     if (!m_process->waitForStarted()) {
         // qCDebug(DEBUG_KXMLGUI) << "Couldn't start kcmshell5..";
         delete m_process;
@@ -402,34 +437,35 @@ void KBugReport::accept()
 
     switch (d->currentSeverity()) {
     case 0: // critical
-        if (KMessageBox::questionYesNo(this,
-                                       i18n("<p>You chose the severity <b>Critical</b>. "
-                                            "Please note that this severity is intended only for bugs that:</p>"
-                                            "<ul><li>break unrelated software on the system (or the whole system)</li>"
-                                            "<li>cause serious data loss</li>"
-                                            "<li>introduce a security hole on the system where the affected package is installed</li></ul>\n"
-                                            "<p>Does the bug you are reporting cause any of the above damage? "
-                                            "If it does not, please select a lower severity. Thank you.</p>"),
-                                       QString(),
-                                       KStandardGuiItem::cont(),
-                                       KStandardGuiItem::cancel())
-            == KMessageBox::No) {
+        if (KMessageBox::questionTwoActions(this,
+                                            i18n("<p>You chose the severity <b>Critical</b>. "
+                                                 "Please note that this severity is intended only for bugs that:</p>"
+                                                 "<ul><li>break unrelated software on the system (or the whole system)</li>"
+                                                 "<li>cause serious data loss</li>"
+                                                 "<li>introduce a security hole on the system where the affected package is installed</li></ul>\n"
+                                                 "<p>Does the bug you are reporting cause any of the above damage? "
+                                                 "If it does not, please select a lower severity. Thank you.</p>"),
+                                            QString(),
+                                            KStandardGuiItem::cont(),
+                                            KStandardGuiItem::cancel())
+            == KMessageBox::SecondaryAction) {
             return;
         }
         break;
     case 1: // grave
-        if (KMessageBox::questionYesNo(this,
-                                       i18n("<p>You chose the severity <b>Grave</b>. "
-                                            "Please note that this severity is intended only for bugs that:</p>"
-                                            "<ul><li>make the package in question unusable or mostly so</li>"
-                                            "<li>cause data loss</li>"
-                                            "<li>introduce a security hole allowing access to the accounts of users who use the affected package</li></ul>\n"
-                                            "<p>Does the bug you are reporting cause any of the above damage? "
-                                            "If it does not, please select a lower severity. Thank you.</p>"),
-                                       QString(),
-                                       KStandardGuiItem::cont(),
-                                       KStandardGuiItem::cancel())
-            == KMessageBox::No) {
+        if (KMessageBox::questionTwoActions(
+                this,
+                i18n("<p>You chose the severity <b>Grave</b>. "
+                     "Please note that this severity is intended only for bugs that:</p>"
+                     "<ul><li>make the package in question unusable or mostly so</li>"
+                     "<li>cause data loss</li>"
+                     "<li>introduce a security hole allowing access to the accounts of users who use the affected package</li></ul>\n"
+                     "<p>Does the bug you are reporting cause any of the above damage? "
+                     "If it does not, please select a lower severity. Thank you.</p>"),
+                QString(),
+                KStandardGuiItem::cont(),
+                KStandardGuiItem::cancel())
+            == KMessageBox::SecondaryAction) {
             return;
         }
         break;
@@ -452,12 +488,12 @@ void KBugReport::accept()
 void KBugReport::closeEvent(QCloseEvent *e)
 {
     if (d->bugDestination == KBugReportPrivate::CustomEmail && ((d->m_lineedit->toPlainText().length() > 0) || d->m_subject->isModified())) {
-        int rc = KMessageBox::warningYesNo(this,
-                                           i18n("Close and discard\nedited message?"),
-                                           i18nc("@title:window", "Close Message"),
-                                           KStandardGuiItem::discard(),
-                                           KStandardGuiItem::cont());
-        if (rc == KMessageBox::No) {
+        int rc = KMessageBox::warningTwoActions(this,
+                                                i18n("Close and discard\nedited message?"),
+                                                i18nc("@title:window", "Close Message"),
+                                                KStandardGuiItem::discard(),
+                                                KStandardGuiItem::cont());
+        if (rc == KMessageBox::SecondaryAction) {
             e->ignore();
             return;
         }

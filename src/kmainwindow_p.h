@@ -36,6 +36,11 @@ public:
     bool suppressCloseEvent : 1;
 
     KConfigGroup autoSaveGroup;
+    // If API consumers opt-in to save the state config separately, we want to save the window sizes in the given config
+    KConfigGroup &autoSaveStateGroup()
+    {
+        return m_stateConfigGroup.isValid() ? m_stateConfigGroup : autoSaveGroup;
+    }
     KConfigGroup m_stateConfigGroup;
     inline KConfigGroup getValidStateConfig(KConfigGroup &cg) const
     {
@@ -83,7 +88,7 @@ public:
     KMWSessionManager();
     ~KMWSessionManager() override;
 
-private Q_SLOTS:
+private:
     void saveState(QSessionManager &);
     void commitData(QSessionManager &);
 };

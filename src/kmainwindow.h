@@ -85,8 +85,12 @@ class KToolBar;
  * the last mainwindow will quit the application unless there is still something
  * that holds a ref in KGlobal - like a KIO job, or a systray icon.
  *
- * @author Reginald Stadlbauer (reggie@kde.org) Stephan Kulow (coolo@kde.org), Matthias Ettrich (ettrich@kde.org), Chris Schlaeger (cs@kde.org), Sven Radej
- * (radej@kde.org). Maintained by David Faure (faure@kde.org)
+ * @author Reginald Stadlbauer (reggie@kde.org)
+ * @author Stephan Kulow (coolo@kde.org)
+ * @author Matthias Ettrich (ettrich@kde.org)
+ * @author Chris Schlaeger (cs@kde.org)
+ * @author Sven Radej (radej@kde.org)
+ * Maintained by David Faure (faure@kde.org)
  */
 
 class KXMLGUI_EXPORT KMainWindow : public QMainWindow
@@ -363,6 +367,7 @@ public:
     /**
      * Set the config group name for state config returned by @p stateConfigGroup
      * If this method is called the window size and window state are stored in the resulting KConfigGroup.
+     * @note If this is used in combination with @p setAutoSaveSettings, you should call this method first
      *
      * @see KSharedConfig::openStateConfig
      *
@@ -503,12 +508,13 @@ protected:
        Reimplement this function to prevent the user from losing data.
        Example:
        \code
-       switch ( KMessageBox::warningYesNoCancel( this,
-                i18n("Save changes to document foo?")) ) {
-       case KMessageBox::Yes :
+       switch ( KMessageBox::warningTwoActionsCancel( this,
+                i18n("Save changes to document foo?"), QString(),
+                KStandardGuiItem::save(), KStandardGuiItem::discard())) ) {
+       case KMessageBox::PrimaryAction :
          // save document here. If saving fails, return false;
          return true;
-       case KMessageBox::No :
+       case KMessageBox::SecondaryAction :
          return true;
        default: // cancel
          return false;

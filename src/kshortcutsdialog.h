@@ -50,6 +50,10 @@
  * e.g. @c QDialog::accepted() your function might be called before the changes have
  * actually been saved).
  *
+ * @note Starting from 5.95, if there are no Global shortcuts in any of the action
+ * collections shown in the dialog, the relevant columns ("Global" and "Global Alternate")
+ * will be hidden.
+ *
  * Example:
  * @code
  * // Create the dialog; alternatively you can use the other constructor if e.g.
@@ -203,6 +207,26 @@ public:
      * @since 5.15
      */
     void exportConfiguration(const QString &path) const;
+
+    /**
+     * Reloads the list of schemes in the "Manage Schemes" section
+     *
+     * This is useful if the available scheme files changed for some reason
+     * eg. because KNewStuff was used
+     *
+     * @since 5.97
+     */
+    void refreshSchemes();
+
+    /**
+     * This adds a @c QAction to the "More Actions" menu
+     *
+     * This is useful to add for example an action to download more
+     * keyboard schemes via KNewStuff
+     *
+     * @since 5.97
+     */
+    void addActionToSchemesMoreButton(QAction *action);
 
 public Q_SLOTS:
     /**

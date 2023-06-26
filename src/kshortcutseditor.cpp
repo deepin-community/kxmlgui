@@ -106,10 +106,10 @@ void KShortcutsEditor::addCollection(KActionCollection *collection, const QStrin
         displayTitle = collection->componentDisplayName();
     }
 
-    QTreeWidgetItem *hier[3];
-    hier[KShortcutsEditorPrivate::Root] = d->ui.list->invisibleRootItem();
-    hier[KShortcutsEditorPrivate::Program] = d->findOrMakeItem(hier[KShortcutsEditorPrivate::Root], displayTitle);
-    hier[KShortcutsEditorPrivate::Action] = nullptr;
+    KShortcutsEditorPrivate::HierarchyInfo hierarchy;
+    hierarchy.root = d->ui.list->invisibleRootItem();
+    hierarchy.program = d->findOrMakeItem(hierarchy.root, displayTitle);
+    hierarchy.action = nullptr;
 
     // Set to remember which actions we have seen.
     QSet<QAction *> actionsSeen;
@@ -117,16 +117,16 @@ void KShortcutsEditor::addCollection(KActionCollection *collection, const QStrin
     // Add all categories in their own subtree below the collections root node
     const QList<KActionCategory *> categories = collection->findChildren<KActionCategory *>();
     for (KActionCategory *category : categories) {
-        hier[KShortcutsEditorPrivate::Action] = d->findOrMakeItem(hier[KShortcutsEditorPrivate::Program], category->text());
+        hierarchy.action = d->findOrMakeItem(hierarchy.program, category->text());
         const auto categoryActions = category->actions();
         for (QAction *action : categoryActions) {
             // Set a marker that we have seen this action
             actionsSeen.insert(action);
-            d->addAction(action, hier, KShortcutsEditorPrivate::Action);
+            d->addAction(action, hierarchy.action);
         }
     }
 
-    // The rest of the shortcuts is added as a direct shild of the action
+    // The rest of the shortcuts are added as direct children of the action
     // collections root node
     const auto collectionActions = collection->actions();
     for (QAction *action : collectionActions) {
@@ -134,11 +134,14 @@ void KShortcutsEditor::addCollection(KActionCollection *collection, const QStrin
             continue;
         }
 
-        d->addAction(action, hier, KShortcutsEditorPrivate::Program);
+        d->addAction(action, hierarchy.program);
     }
 
     // sort the list
     d->ui.list->sortItems(Name, Qt::AscendingOrder);
+
+    // Hide Global shortcuts columns if there are no global shortcuts
+    d->setGlobalColumnsHidden(!d->m_hasAnyGlobalShortcuts);
 
     // re-enable updating
     setUpdatesEnabled(true);
@@ -289,18 +292,17 @@ void KShortcutsEditorPrivate::initGUI(KShortcutsEditor::ActionTypes types, KShor
     ui.list->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
     ui.list->header()->hideSection(ShapeGesture); // mouse gestures didn't make it in time...
     ui.list->header()->hideSection(RockerGesture);
+
 #if HAVE_GLOBALACCEL
-    bool hideGlobals = !(actionTypes & KShortcutsEditor::GlobalAction);
+    const bool hideGlobals = !(actionTypes & KShortcutsEditor::GlobalAction);
 #else
-    bool hideGlobals = true;
+    const bool hideGlobals = true;
 #endif
 
     if (hideGlobals) {
-        ui.list->header()->hideSection(GlobalPrimary);
-        ui.list->header()->hideSection(GlobalAlternate);
+        setGlobalColumnsHidden(true);
     } else if (!(actionTypes & ~KShortcutsEditor::GlobalAction)) {
-        ui.list->header()->hideSection(LocalPrimary);
-        ui.list->header()->hideSection(LocalAlternate);
+        setLocalColumnsHidden(true);
     }
 
     // Create the Delegate. It is responsible for the KKeySeqeunceWidgets that
@@ -324,6 +326,20 @@ void KShortcutsEditorPrivate::initGUI(KShortcutsEditor::ActionTypes types, KShor
     ui.searchFilter->setFocus();
 }
 
+void KShortcutsEditorPrivate::setGlobalColumnsHidden(bool hide)
+{
+    QHeaderView *header = ui.list->header();
+    header->setSectionHidden(GlobalPrimary, hide);
+    header->setSectionHidden(GlobalAlternate, hide);
+}
+
+void KShortcutsEditorPrivate::setLocalColumnsHidden(bool hide)
+{
+    QHeaderView *header = ui.list->header();
+    header->setSectionHidden(LocalPrimary, hide);
+    header->setSectionHidden(LocalAlternate, hide);
+}
+
 void KShortcutsEditorPrivate::setActionTypes(KShortcutsEditor::ActionTypes types)
 {
     if (actionTypes == types) {
@@ -331,25 +347,12 @@ void KShortcutsEditorPrivate::setActionTypes(KShortcutsEditor::ActionTypes types
     }
     actionTypes = types;
 
-    // show/hide the sections based on new selection
-    QHeaderView *header = ui.list->header();
-    if (actionTypes & KShortcutsEditor::GlobalAction) {
-        header->showSection(GlobalPrimary);
-        header->showSection(GlobalAlternate);
-    } else {
-        header->hideSection(GlobalPrimary);
-        header->hideSection(GlobalAlternate);
-    }
-    if (actionTypes & ~KShortcutsEditor::GlobalAction) {
-        header->showSection(LocalPrimary);
-        header->showSection(LocalAlternate);
-    } else {
-        header->hideSection(LocalPrimary);
-        header->hideSection(LocalAlternate);
-    }
+    // Show/hide columns based on the newly set action types
+    setGlobalColumnsHidden(!(actionTypes & KShortcutsEditor::GlobalAction));
+    setLocalColumnsHidden(!(actionTypes & ~KShortcutsEditor::GlobalAction));
 }
 
-bool KShortcutsEditorPrivate::addAction(QAction *action, QTreeWidgetItem *hier[], hierarchyLevel level)
+bool KShortcutsEditorPrivate::addAction(QAction *action, QTreeWidgetItem *parent)
 {
     // If the action name starts with unnamed- spit out a warning and ignore
     // it. That name will change at will and will break loading and writing
@@ -361,7 +364,14 @@ bool KShortcutsEditorPrivate::addAction(QAction *action, QTreeWidgetItem *hier[]
 
     const QVariant value = action->property("isShortcutConfigurable");
     if (!value.isValid() || value.toBool()) {
-        new KShortcutsEditorItem((hier[level]), action);
+        new KShortcutsEditorItem(parent, action);
+
+#if HAVE_GLOBALACCEL
+        if (!m_hasAnyGlobalShortcuts) { // If one global action was found, skip
+            m_hasAnyGlobalShortcuts = KGlobalAccel::self()->hasShortcut(action);
+        }
+#endif
+
         return true;
     }
 
@@ -559,11 +569,15 @@ void KShortcutsEditorPrivate::printShortcuts() const
     tableformat.setBorderStyle(QTextFrameFormat::BorderStyle_Solid);
     tableformat.setBorder(0.5);
 
-    const QPair<QString, ColumnDesignation> shortcutTitleToColumnMap[] = {
-        qMakePair(i18n("Main:"), LocalPrimary),
-        qMakePair(i18n("Alternate:"), LocalAlternate),
-        qMakePair(i18n("Global:"), GlobalPrimary),
-        qMakePair(i18n("Global alternate:"), GlobalAlternate),
+    struct ColumnInfo {
+        QString title;
+        ColumnDesignation column;
+    };
+    const ColumnInfo shortcutTitleToColumnMap[] = {
+        {i18n("Main:"), LocalPrimary},
+        {i18n("Alternate:"), LocalAlternate},
+        {i18n("Global:"), GlobalPrimary},
+        {i18n("Global alternate:"), GlobalAlternate},
     };
 
     for (int i = 0; i < root->childCount(); i++) {
@@ -601,8 +615,8 @@ void KShortcutsEditorPrivate::printShortcuts() const
             table->cellAt(currow, 0).firstCursorPosition().insertText(data.toString());
 
             QTextTable *shortcutTable = nullptr;
-            for (const auto &shortcutTitleToColumn : shortcutTitleToColumnMap) {
-                data = editoritem->data(shortcutTitleToColumn.second, Qt::DisplayRole);
+            for (const auto &[title, column] : shortcutTitleToColumnMap) {
+                data = editoritem->data(column, Qt::DisplayRole);
                 QString key = data.value<QKeySequence>().toString();
 
                 if (!key.isEmpty()) {
@@ -616,7 +630,7 @@ void KShortcutsEditorPrivate::printShortcuts() const
                     } else {
                         shortcutTable->insertRows(shortcutTable->rows(), 1);
                     }
-                    shortcutTable->cellAt(shortcutTable->rows() - 1, 0).firstCursorPosition().insertText(shortcutTitleToColumn.first);
+                    shortcutTable->cellAt(shortcutTable->rows() - 1, 0).firstCursorPosition().insertText(title);
                     shortcutTable->cellAt(shortcutTable->rows() - 1, 1).firstCursorPosition().insertText(key);
                 }
             }

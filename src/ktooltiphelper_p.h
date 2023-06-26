@@ -40,7 +40,7 @@ public:
     ~KToolTipHelperPrivate() override;
 
     /** @see KToolTipHelper::eventFilter() */
-    virtual bool eventFilter(QObject* watched, QEvent* event) override;
+    virtual bool eventFilter(QObject *watched, QEvent *event) override;
 
     /** @see KToolTipHelper::whatsThisHintOnly() */
     static const QString whatsThisHintOnly();
@@ -68,11 +68,11 @@ public:
     bool handleMenuToolTipEvent(QMenu *menu, QHelpEvent *helpEvent);
 
     /**
-     * @param watchedWidget The widget that is receiving the QHelpEvent
+     * @param watched       The object that is receiving the QHelpEvent
      * @param helpEvent     The QEvent::ToolTip that was cast to a QHelpEvent
      * @return false if no special handling of the tooltip event seems necessary. true otherwise.
      */
-    bool handleToolTipEvent(QWidget *watchedWidget, QHelpEvent *helpEvent);
+    bool handleToolTipEvent(QObject *watched, QHelpEvent *helpEvent);
 
     /**
      * Handles links being clicked in whatsThis.
@@ -94,9 +94,7 @@ public:
      *
      * @see QToolTip::showText()
      */
-    void showExpandableToolTip(const QPoint &globalPos,
-                               const QString &toolTip = QStringLiteral(),
-                               const QRect &rect = QRect());
+    void showExpandableToolTip(const QPoint &globalPos, const QString &toolTip = QStringLiteral(), const QRect &rect = QRect());
 
 public:
     KToolTipHelper *const q;
@@ -108,6 +106,8 @@ private:
     QPoint m_lastExpandableToolTipGlobalPos;
     /** The last widget a QEvent::tooltip was sent for. */
     QPointer<QWidget> m_widget;
+    /** Whether or not the last tooltip was expandable */
+    bool m_lastToolTipWasExpandable = false;
 
     /** The global position of where the cursor was when the last QEvent::HideEvent for a
      * menu occurred. @see handleHideEvent() */
@@ -119,13 +119,12 @@ private:
 };
 
 /**
- * All QActions have their iconText() as their toolTip() by default.
- * This method checks if setToolTip() was called for the action explicitly to set a different/more
- * useful tooltip.
+ * This method checks if string "a" is sufficiently different from string "b", barring characters
+ * like periods, ampersands and other characters. Used for determining if tooltips are different from
+ * their icon name counterparts.
  *
- * @return true if the toolTip() isn't just an automatically generated version of iconText().
- *         false otherwise.
+ * @return true if the string "a" is similar to "b" and false otherwise.
  */
-bool hasExplicitToolTip(const QAction *action);
+bool isTextSimilar(const QString &a, const QString &b);
 
 #endif // KTOOLTIPHELPER_P_H

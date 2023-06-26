@@ -16,7 +16,7 @@
 
 #include "kactioncollection.h"
 #include "kmainwindow_p.h"
-#include "kmessagebox.h"
+#include <KMessageBox>
 #ifdef QT_DBUS_LIB
 #include "kmainwindowiface_p.h"
 #endif
@@ -186,7 +186,8 @@ KXmlGuiWindow::KXmlGuiWindow(QWidget *parent, Qt::WindowFlags f)
         kc.setActions(actionCollectionToActionGroup(actionCollections));
         kc.exec();
     });
-    a->setText(i18n("Open Command Bar"));
+    a->setIcon(QIcon::fromTheme(QStringLiteral("search")));
+    a->setText(i18n("Find Action…"));
     actionCollection()->setDefaultShortcut(a, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
 }
 

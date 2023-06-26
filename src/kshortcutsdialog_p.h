@@ -222,6 +222,8 @@ public:
 
     /** @return the currently selected scheme in the editor (may differ from current app's scheme.*/
     QString currentScheme();
+    void refreshSchemes();
+    void addMoreMenuAction(QAction *action);
 
 private Q_SLOTS:
     void newScheme();
@@ -241,6 +243,7 @@ private:
     QPushButton *m_deleteScheme;
     QPushButton *m_exportScheme;
     QComboBox *m_schemesList;
+    QMenu *m_moreActionsMenu;
 
     KShortcutsDialog *m_dialog;
 };
@@ -390,7 +393,11 @@ public:
     void capturedShortcut(const QVariant &, const QModelIndex &);
 
     //! Represents the three hierarchies the dialog handles.
-    enum hierarchyLevel { Root = 0, Program, Action };
+    struct HierarchyInfo {
+        QTreeWidgetItem *root = nullptr;
+        QTreeWidgetItem *program = nullptr;
+        QTreeWidgetItem *action = nullptr;
+    };
 
     /**
      * Add @p action at @p level. Checks for QActions and unnamed actions
@@ -398,11 +405,14 @@ public:
      *
      * @return @c true if the action was really added, @c false if not
      */
-    bool addAction(QAction *action, QTreeWidgetItem *hier[], hierarchyLevel level);
+    bool addAction(QAction *action, QTreeWidgetItem *parent);
 
     void printShortcuts() const;
 
     void setActionTypes(KShortcutsEditor::ActionTypes actionTypes);
+
+    void setGlobalColumnsHidden(bool hide);
+    void setLocalColumnsHidden(bool hide);
 
     // members
     QList<KActionCollection *> actionCollections;
@@ -412,6 +422,9 @@ public:
 
     KShortcutsEditor::ActionTypes actionTypes;
     KShortcutsEditorDelegate *delegate;
+
+    // Tracks if there are any Global shortcuts in any of the action collections shown in the dialog
+    bool m_hasAnyGlobalShortcuts = false;
 };
 
 Q_DECLARE_METATYPE(KShortcutsEditorItem *)

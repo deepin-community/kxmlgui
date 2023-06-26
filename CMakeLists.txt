@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(KF_VERSION "5.90.0") # handled by release scripts
-set(KF_DEP_VERSION "5.90.0") # handled by release scripts
+set(KF_VERSION "5.103.0") # handled by release scripts
+set(KF_DEP_VERSION "5.103.0") # handled by release scripts
 project(KXmlGui VERSION ${KF_VERSION})
 
 # ECM setup
 include(FeatureSummary)
-find_package(ECM 5.90.0  NO_MODULE)
+find_package(ECM 5.103.0  NO_MODULE)
 set_package_properties(ECM PROPERTIES TYPE REQUIRED DESCRIPTION "Extra CMake Modules." URL "https://commits.kde.org/extra-cmake-modules")
 feature_summary(WHAT REQUIRED_PACKAGES_NOT_FOUND FATAL_ON_MISSING_REQUIRED_PACKAGES)
 
@@ -24,6 +24,8 @@ include(KDEFrameworkCompilerSettings NO_POLICY_SCOPE)
 include(KDECMakeSettings)
 include(KDEGitCommitHooks)
 include(ECMQtDeclareLoggingCategory)
+include(ECMDeprecationSettings)
+include(CMakeDependentOption)
 
 ecm_setup_version(PROJECT
                   VARIABLE_PREFIX KXMLGUI
@@ -37,7 +39,7 @@ option(FORCE_DISABLE_KGLOBALACCEL "Force building KXmlGui without KGlobalAccel. 
 option(BUILD_QCH "Build API documentation in QCH format (for e.g. Qt Assistant, Qt Creator & KDevelop)" OFF)
 add_feature_info(QCH ${BUILD_QCH} "API documentation in QCH format (for e.g. Qt Assistant, Qt Creator & KDevelop)")
 
-option(BUILD_DESIGNERPLUGIN "Build plugin for Qt Designer" ON)
+cmake_dependent_option(BUILD_DESIGNERPLUGIN "Build plugin for Qt Designer" ON "NOT CMAKE_CROSSCOMPILING" OFF)
 add_feature_info(DESIGNERPLUGIN ${BUILD_DESIGNERPLUGIN} "Build plugin for Qt Designer")
 
 # Dependencies
@@ -65,8 +67,13 @@ if (NOT FORCE_DISABLE_KGLOBALACCEL AND NOT WIN32 AND NOT APPLE AND NOT ANDROID)
     find_package(KF5GlobalAccel ${KF_DEP_VERSION} REQUIRED)
 endif()
 set (HAVE_GLOBALACCEL ${KF5GlobalAccel_FOUND})
-add_definitions(-DQT_DISABLE_DEPRECATED_BEFORE=0x050f02)
-add_definitions(-DKF_DISABLE_DEPRECATED_BEFORE_AND_AT=0x055100)
+
+ecm_set_disabled_deprecation_versions(
+    QT 5.15.2
+    KF 5.95
+    KCOREADDONS 5.86 # KPluginMetaData::extraInformation
+)
+
 add_definitions(-DTRANSLATION_DOMAIN=\"kxmlgui5\")
 ki18n_install(po)
 
@@ -110,7 +117,7 @@ install(EXPORT KF5XmlGuiTargets DESTINATION "${CMAKECONFIG_INSTALL_DIR}" FILE KF
 
 install(FILES
    ${CMAKE_CURRENT_BINARY_DIR}/kxmlgui_version.h
-  DESTINATION ${KDE_INSTALL_INCLUDEDIR_KF} COMPONENT Devel
+  DESTINATION ${KDE_INSTALL_INCLUDEDIR_KF}/KXmlGui COMPONENT Devel
 )
 
 feature_summary(WHAT ALL   FATAL_ON_MISSING_REQUIRED_PACKAGES)

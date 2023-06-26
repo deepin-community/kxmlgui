@@ -15,8 +15,9 @@ KAboutApplicationComponentModel::KAboutApplicationComponentModel(const QList<KAb
     , m_componentList(componentList)
 {
     m_profileList.reserve(componentList.size());
-    for (const auto &component : qAsConst(m_componentList)) {
-        KAboutApplicationComponentProfile profile = KAboutApplicationComponentProfile(component.name(), component.description(), component.version(), component.webAddress(), component.license());
+    for (const auto &component : std::as_const(m_componentList)) {
+        KAboutApplicationComponentProfile profile =
+            KAboutApplicationComponentProfile(component.name(), component.description(), component.version(), component.webAddress(), component.license());
         m_profileList.append(profile);
     }
 }

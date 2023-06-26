@@ -401,11 +401,11 @@ public:
         : m_collection(collection)
         , m_widget(widget)
         , m_factory(nullptr)
+        , m_componentName(cName)
+        , m_helpArea(nullptr)
+        , m_isPart(false)
         , m_loadedOnce(false)
     {
-        m_componentName = cName;
-        m_isPart = false;
-        m_helpArea = nullptr;
         // We want items with an icon to align with items without icon
         // So we use an empty QPixmap for that
         const int iconSize = widget->style()->pixelMetric(QStyle::PM_SmallIconSize);
@@ -940,19 +940,16 @@ void KEditToolBarWidget::rebuildKXMLGUIClients()
     }
 
     const QList<KXMLGUIClient *> clients = d->m_factory->clients();
-    // qDebug(240) << "factory: " << clients.count() << " clients";
+    // qDebug() << "factory: " << clients.count() << " clients";
 
-    // remove the elements starting from the last going to the first
     if (clients.isEmpty()) {
         return;
     }
 
-    QListIterator<KXMLGUIClient *> clientIterator = clients;
-    clientIterator.toBack();
-    while (clientIterator.hasPrevious()) {
-        KXMLGUIClient *client = clientIterator.previous();
-        // qDebug(240) << "factory->removeClient " << client;
-        d->m_factory->removeClient(client);
+    // remove the elements starting from the last going to the first
+    for (auto it = clients.crbegin(); it != clients.crend(); ++it) {
+        // qDebug() << "factory->removeClient " << client;
+        d->m_factory->removeClient(*it);
     }
 
     KXMLGUIClient *firstClient = clients.first();
@@ -1009,7 +1006,7 @@ void KEditToolBarWidgetPrivate::setupLayout()
     m_inactiveList = new ToolBarListWidget(m_widget);
     m_inactiveList->setDragEnabled(true);
     m_inactiveList->setActiveList(false);
-    m_inactiveList->setMinimumSize(180, 250);
+    m_inactiveList->setMinimumSize(180, 200);
     m_inactiveList->setDropIndicatorShown(false); // #165663
     inactive_label->setBuddy(m_inactiveList);
     QObject::connect(m_inactiveList, &QListWidget::itemSelectionChanged, m_widget, [this]() {

@@ -1,6 +1,6 @@
 #include "krulertest.h"
 
-#include <kruler.h>
+#include <KRuler>
 
 #include <QApplication>
 #include <QButtonGroup>
@@ -343,6 +343,7 @@ void KRulerTest::slotSetYTrans(double d)
 /* --- MAIN -----------------------*/
 int main(int argc, char **argv)
 {
+    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
     QApplication::setApplicationName(QStringLiteral("test"));
     QApplication *testapp;
     KRulerTest *window;
